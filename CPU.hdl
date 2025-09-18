@@ -1,0 +1,109 @@
+// Alexander Slack 234001013
+
+CHIP CPU{
+
+    IN  fromM[16],          // M value input  (M = contents of RAM[Address])
+        In[16],    	        // Instruction for execution
+        Reset;              // Signals whether to re-start the current
+                            // program (Reset==1) or continue executing
+                            // the current program (Reset==0).
+
+    OUT toM[16],            // M value output
+        writeM,             // Write to M 
+        addressM[16],       // Address in data memory (of M)
+        PCOut[16];          // address of next instruction
+
+    PARTS:
+    // Instruction bits along with the inverted versions
+    //FIGURE OUT C
+
+    // 1. Register control //
+    Mux16(a=ALUOUT, b=fromM, sel=In[15], out=fromOut); 
+    Mux8Way16(a=true, b=false, c=false, d=false, e=false, f=false, g=false, h=false, sel=In[9..11], out[0]=load0);
+    Mux8Way16(a=false, b=true, c=false, d=false, e=false, f=false, g=false, h=false, sel=In[9..11], out[0]=load1);
+    Mux8Way16(a=false, b=false, c=true, d=false, e=false, f=false, g=false, h=false, sel=In[9..11], out[0]=load2);
+    Mux8Way16(a=false, b=false, c=false, d=true, e=false, f=false, g=false, h=false, sel=In[9..11], out[0]=load3);
+    Mux8Way16(a=false, b=false, c=false, d=false, e=true, f=false, g=false, h=false, sel=In[9..11], out[0]=load4);
+    Mux8Way16(a=false, b=false, c=false, d=false, e=false, f=true, g=false, h=false, sel=In[9..11], out[0]=load5);
+    Mux8Way16(a=false, b=false, c=false, d=false, e=false, f=false, g=true, h=false, sel=In[9..11], out[0]=load6);
+    Mux8Way16(a=false, b=false, c=false, d=false, e=false, f=false, g=false, h=true, sel=In[9..11], out[0]=load7);
+    Register16Bit(in=fromOut, load=load0, out=R0); ////////
+    Register16Bit(in=fromOut, load=load1, out=R1); ////////
+    Register16Bit(in=fromOut, load=load2, out=R2); ////////
+    Register16Bit(in=fromOut, load=load3, out=R3); ////////
+    Register16Bit(in=fromOut, load=load4, out=R4); ////////
+    Register16Bit(in=fromOut, load=load5, out=R5); ////////
+    Register16Bit(in=fromOut, load=load6, out=R6); ////////
+    Register16Bit(in=fromOut, load=load7, out=R7); ////////
+    Mux8Way16(a=R0, b=R1, c=R2, d=R3, e=R4, f=R5, g=R6, h=R7, sel=In[6..8], out=xIn); 
+    Mux8Way16(a=R0, b=R1, c=R2, d=R3, e=R4, f=R5, g=R6, h=R7, sel=In[3..5], out=yMux); 
+    Mux16(a=yMux, b[6..15] = false, b[0..5]=In[0..5], sel=In[12], out=yIn); 
+
+
+    // Register control //
+
+    
+    // 2. ALU  //
+    ALU(AluOp=In[12..15], x=xIn, y=yIn, AluOut=ALUOUT);
+
+
+    // ALU //
+
+
+
+    // 3. Prepare the Memory Address addressM (in case of READ and Write), Memory Data toM (in case of Write or OUT)
+    // addressM //
+    
+    Mux8Way16(a=R0, b=R1, c=R2, d=R3, e=R4, f=R5, g=R6, h=R7, sel=In[9..11], out=toM); 
+    Mux8Way16(a=R0, b=R1, c=R2, d=R3, e=R4, f=R5, g=R6, h=R7, sel=In[6..8], out=addressM); 
+
+
+    // addressM //
+
+
+
+    // 4. Generate the writeM signal (memory write for RAM or Screen)
+    // writeM is true if it is a Memory Write operation or a Screen OUT operation
+    // writeM //
+    Not(in=In[14], out=not14W);
+    Not(in=In[12], out=not12W);
+    Not(in=In[13], out=not13W);
+    And(a=In[15], b=not14W, out=write1);
+    And(a=In[13], b=not12W, out=write2);
+    And(a=write1, b=write2, out=write);
+    And(a=In[15], b=In[14], out=outOp1);
+    And(a=outOp1, b=not13W, out=outOp);
+    Or(a=write, b=outOp, out=writeM);
+
+   
+
+
+    // writeM //
+    
+
+    
+    // 5. We load the PC with new value if there is a branch
+    // Branch can be conditional or unconditional
+    // Unconditional => In[15..12] = 1011
+    // Conditional => In[15..12] = 1001 && In[8..6]==000
+    // PC //
+    Not(in=In[14], out=not14);
+    And(a=In[15], b=not14, out=uncond1);
+    And(a=In[13], b=In[12], out=uncond2);
+    And(a=uncond1, b=uncond2, out=uncondBranch);
+    Not(in=In[13], out=not13);
+    And(a=In[15], b=not14, out=cond1);
+    And(a=not13, b=In[12], out=cond2);
+    And(a=cond1, b=cond2, out=cond);
+    Not(in=In[8], out=not8);
+    Not(in=In[7], out=not7);
+    Not(in=In[6], out=not6);
+    And(a=not8, b=not7, out=cond3);
+    And(a=cond3, b=not6, out=cond4);
+    And(a=cond4, b=cond, out=condBranch);
+    Or(a=uncondBranch, b=condBranch, out=branchPresent);
+    Mux8Way16(a=R0, b=R1, c=R2, d=R3, e=R4, f=R5, g=R6, h=R7, sel=In[9..11], out=pcIn); 
+    PC(in=pcIn, reset=Reset, load=branchPresent, inc=true, out=PCOut, out=PCOut1); ////////
+
+    // PC //
+} 
